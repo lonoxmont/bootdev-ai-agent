@@ -2,6 +2,8 @@ import os
 import sys
 from dotenv import load_dotenv
 from google.genai import types
+from call_function import call_function, available_functions
+
 verbose = "--verbose" in sys.argv
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -12,27 +14,16 @@ You are a helpful AI coding agent.
 When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
 
 - List files and directories
+- Read file contents
+- Execute Python files with optional arguments
+- Write or overwrite files
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
-schema_get_files_info = types.FunctionDeclaration(
-    name="get_files_info",
-    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
-            ),
-        },
-    ),
-)
-available_functions = types.Tool(
-    function_declarations=[
-        schema_get_files_info,
-    ]
-)
+
+
+
+
 
 from google import genai
 
@@ -57,8 +48,22 @@ response = client.models.generate_content(
         ),
 )
 if response.function_calls:
+    function_responses = []
     for function_call_part in response.function_calls:
-        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+        function_call_result = call_function(function_call_part, verbose)
+        if (
+            not function_call_result.parts
+            or not function_call_result.parts[0].function_response
+        ):
+            raise Exception("empty function call result")
+        if verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")
+        function_responses.append(function_call_result.parts[0])
+
+    if not function_responses:
+        raise Exception("no function responses generated, exiting.")
+
+
 else:
     print(response.text)
 
