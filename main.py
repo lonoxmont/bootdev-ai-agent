@@ -34,38 +34,45 @@ if not args:
     sys.exit(1)
 proompt = " ".join(args)
 from google.genai import types
+
 messages = [
-    types.Content(role="user", parts=[types.Part(text=proompt)])
+        types.Content(role="user", parts=[types.Part(text=proompt)])
 ]
 
-
-response = client.models.generate_content(
-    model='gemini-2.0-flash-001',
-    contents=messages,
-    config=types.GenerateContentConfig(
-        tools=[available_functions],
-        system_instruction=system_prompt,
+for i in range(20):
+    response = client.models.generate_content(
+        model='gemini-2.0-flash-001',
+        contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions],
+            system_instruction=system_prompt,
         ),
 )
-if response.function_calls:
-    function_responses = []
-    for function_call_part in response.function_calls:
-        function_call_result = call_function(function_call_part, verbose)
-        if (
-            not function_call_result.parts
-            or not function_call_result.parts[0].function_response
-        ):
-            raise Exception("empty function call result")
-        if verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
-        function_responses.append(function_call_result.parts[0])
+    for candidate in response.candidates:
+        messages.append(candidate.content)
+    
+    if response.function_calls:
+        function_responses = []
+        for function_call_part in response.function_calls:
+            function_call_result = call_function(function_call_part, verbose)
+            if (
+                not function_call_result.parts
+                or not function_call_result.parts[0].function_response
+            ):
+                raise Exception("empty function call result")
+            if verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
+            function_responses.append(function_call_result.parts[0])
+            messages.append(function_call_result)
 
-    if not function_responses:
-        raise Exception("no function responses generated, exiting.")
+        #if not function_responses:
+         #   break
+            #raise Exception("no function responses generated, exiting.")
 
 
-else:
-    print(response.text)
+    else:
+        print(response.text)
+        break
 
 if verbose:
     print(f"User prompt: {proompt}")
